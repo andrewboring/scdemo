@@ -1,0 +1,118 @@
+#!/bin/sh 
+
+
+ENDPOINT="http://192.168.57.111/auth/v1.0"
+STORAGEURL="http://192.168.57.111/v1"
+AUTHUSER="AUTH_andrew"
+
+set_token () {
+	if [ -s ~/.token ]
+	then 
+		TOKEN=$(cat ~/.token) 
+	else 
+		echo "Authentication needed. Run 'demo auth [user] [pass]'"
+		exit 0
+	fi
+}
+
+obtain_token () {
+	AUTHK=$(curl -s -i -k -H "X-Auth-User: $USER" -H "X-Auth-Key: $PASS" $ENDPOINT | grep ^X-Auth-Token | cut -f2 -d: | sed -e 's/^[[:space:]]*//')
+	echo $AUTHK> ~/.token
+	exit 0
+}
+
+get_file () {
+	if [ -z "$TOKEN" ]
+	then
+		set_token	
+	fi
+	clear
+	#echo "Runnin curl -s -k -O -X GET -H \"X-Auth-Token: $TOKEN\" ${STORAGEURL}/${AUTHUSER}/${CONT}/${FILE}"
+	echo ""
+	if [ -z "$FILE" ]	
+	then
+		echo "Running a GET request on ${CONT}"
+		curl -s -k -X GET -H "X-Auth-Token: $TOKEN" ${STORAGEURL}/${AUTHUSER}/${CONT}?format=json | json_pp
+	else
+		echo "Retrieving $FILE from $CONT"
+		curl -s -k -O -X GET -H "X-Auth-Token: $TOKEN" ${STORAGEURL}/${AUTHUSER}/${CONT}/${FILE}
+	fi
+	exit 0
+}
+
+# Tier / Bkup Curl
+head_file () {
+	if [ -z "$TOKEN" ]
+	then	
+		set_token
+	fi
+	clear
+	if [ -z "$FILE" ]
+	then 
+		echo "Running a HEAD request on ${CONT}"
+		echo ""
+		curl -s -k -I -H "X-Auth-Token: $TOKEN" ${STORAGEURL}/${AUTHUSER}/${CONT}
+	else
+		echo "Displaying object headers for $FILE"
+		#echo "curl -s -k -I -H \"X-Auth-Token: $TOKEN\" ${STORAGEURL}/${AUTHUSER}/${CONT}/${FILE}"
+		echo ""
+		curl -s -k -I -H "X-Auth-Token: $TOKEN" ${STORAGEURL}/${AUTHUSER}/${CONT}/${FILE}
+	fi
+	exit 0
+}
+
+headr_file () {
+	if [ -z "$TOKEN" ]
+	then	
+		set_token
+	fi
+	clear
+	echo "Displaying object headers for remote $FILE in Eriscape"
+ 	#echo "curl -s -k -I -H \"X-Auth-Token: $TOKEN\" ${STORAGEURL}/${AUTHUSER}/${CONT}/${FILE}"
+	echo ""
+        #curl -s -k -I -H "X-Auth-User: $USER" -H "X-Auth-Key: $PASS" https://storage.api.eriscape.com/v1/${AUTHUSER}/${CONT}/${FILE}
+	swift -A https://storage.api.eriscape.com/auth/v1.0 -U syncdemo -K password1 stat -v ${CONT} ${FILE}
+	exit 0
+}
+#put_file () {
+#	curl -i -k -X PUT -H "X-Auth-Token: $TOKEN" $ENDPOINT/$AUTHUSER/$CONT/$FILE
+#}
+
+while [ "$1" != "" ]
+do
+	case $1 in 
+		auth)	shift
+			USER=$1
+			PASS=$2
+			obtain_token
+			;;
+		get)	shift
+			CONT=$1
+			FILE=$2
+			get_file
+			;;
+		head)	shift
+			CONT=$1
+			FILE=$2
+			head_file
+			;;
+		headr)	shift
+			CONT=$1
+			FILE=$2
+			headr_file
+			;;
+		put)	echo "Command not [yet] implemented."
+			exit 1
+			;;
+		*)	echo "Usage:"
+			echo "demo auth [username] [password]"
+			echo "demo get [container] [file]"
+			echo "demo head [container] [file]"
+			exit 0
+			;;
+	esac
+done
+
+echo ""
+echo "A simple curl front-end for lazy SEs doing demos."
+exec demo help
